@@ -18,6 +18,14 @@ append_str(PUNICODE_STRING dest, char str, PCWSTR src)
  * CURRENTLY A STUB
  */
 int
-RtlGetOSProductName(PUNICODE_STRING buf, uint product)
+RtlGetOSProductName(PUNICODE_STRING buf, OS_PRODUCTNAME productName)
 {
+	dest = buf;
+	if (productName == 0)
+		return 
+	if (buf->MaximumLength == 0)
+		return STATUS_INVALID_PARAMETER;
+
+	*buf->Buffer = L'\0';
+	buf->Length = 0;
 }
