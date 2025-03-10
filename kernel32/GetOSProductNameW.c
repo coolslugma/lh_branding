@@ -18,12 +18,15 @@ int
 GetOSProductNameW(LPCWSTR sb, uint length, OS_PRODUCTNAME productName)
 {
 	NTSTATUS status;
-	UNICODE_STRING buf;
+	ULONG error;
+	LPCWSTR buf[2];
 
 	if (length == 0) {
-		status = STATUS_INVALID_PARAMETER;
+		status = -0x3fffffdd;
 	} else {
-		status = RtlGetOSProductName(&buf, productName);
+		buf[0] = (LPCWSTR)((uint)(ushort)((short)length * 2) << 0x10);
+		buf[1] = sb;
+		status = RtlGetOSProductName((PUNICODE_STRING)buf, productName);
 	}
 
 	error = RtlNtStatusToDosError(status);
