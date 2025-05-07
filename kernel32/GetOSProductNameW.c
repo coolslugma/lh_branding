@@ -1,39 +1,32 @@
-static void
-break_to_debugger(DWORD error)
-{
-	if ((debug != 0) && (error == debug))
-		DbgBreakPoint();
+#include <ntifs.h>
 
-	if (LastErrorValue != error)
-		LastErrorValue = error;
-}
+#include "lh_branding.h"
+
+typedef ULONG DWORD;
 
 /*
- * kernel32.dll
- * 0x39583  440  GetOSProductNameW
- *
- * CURRENTLY A STUB
+ * @implemented
  */
-int
-GetOSProductNameW(LPCWSTR sb, uint length, OS_PRODUCTNAME productName)
+BOOL
+WINAPI
+GetOSProductNameW(OUT LPWSTR ProductName,
+                  IN ULONG ProductNameLength,
+                  IN DWORD Flags)
 {
-	NTSTATUS status;
-	ULONG error;
-	LPCWSTR buf[2];
+    NTSTATUS Status;
+    DWORD Error;
+    UNICODE_STRING ProductNameOut;
 
-	if (length == 0) {
-		status = -0x3fffffdd;
-	} else {
-		buf[0] = (LPCWSTR)((uint)(ushort)((short)length * 2) << 0x10);
-		buf[1] = sb;
-		status = RtlGetOSProductName((PUNICODE_STRING)buf, productName);
-	}
+    if (!ProductNameLength)
+        Status = STATUS_BUFFER_TOO_SMALL;
+    else {
+        ProductNameOut.Buffer = ProductName;
+        ProductNameOut.MaximumLength = (USHORT)(ProductNameLength * sizeof(WCHAR));
+        Status = RtlGetOSProductName(&ProductNameOut, Flags);
+    }
 
-	error = RtlNtStatusToDosError(status);
-	break_to_debugger(error);
+    Error = RtlNtStatusToDosError(Status);
+    SetLastError(Error);
 
-	if (status < 0)
-		return 0;
-	else
-		return 1;
+    return NT_SUCCESS(Status);
 }
