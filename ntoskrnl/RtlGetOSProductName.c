@@ -16,6 +16,88 @@ AppendConditionally(PUNICODE_STRING Destination, BOOLEAN Condition, LPCWSTR Suff
     RtlAppendUnicodeToString(Destination, Suffix);
 }
 
+NTSTATUS NTAPI
+CheckInstalledValue(PHANDLE KeyHandle, CHAR Access, ACCESS_MASK DesiredAccess)
+{
+	NTSTATUS Status;
+	HANDLE Handle = NULL;
+	UNICODE_STRING ValueName;
+	ULONG ResultLength;
+	CHAR Buffer[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + 256];
+	PKEY_VALUE_PARTIAL_INFORMATION KeyValue = (PKEY_VALUE_PARTIAL_INFORMATION) Buffer;
+	ACCESS_MASK AccessMask = (ACCESS_MASK)((Access << 8) | DesiredAccess);
+	BOOLEAN Found = FALSE;
+
+	Status = ZwOpenKey(KeyHandle, AccessMask, (POBJECT_ATTRIBUTES)&DesiredAccess);
+	if (NT_SUCCESS(Status)) {
+		RtlInitUnicodeString(&ValueName, L"Installed");
+		Status = ZwQueryValueKey(*KeyHandle, &ValueName, KeyValuePartialInformation, KeyValue, sizeof(Buffer), &ResultLength);
+		if (NT_SUCCESS(Status) && KeyValue->DataLength > 0)
+			Found = TRUE;
+
+		ZwClose(*KeyHandle);
+	}
+
+	return NT_SUCCESS(Found);
+}
+
+BOOLEAN NTAPI
+IsFreestyle(VOID)
+{
+	NTSTATUS Status;
+	HANDLE KeyHandle = NULL;
+	CHAR Access = 0;
+	OBJECT_ATTRIBUTES ObjAttr;
+	UNICODE_STRING Path;
+
+	RtlInitUnicodeString(&Path, L"\\Registry\\Machine\\System\\WPA\\MediaCenter");
+	InitializeObjectAttributes(&ObjAttr, &Path, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	Status = CheckInstalledValue(&KeyHandle, Access, (ACCESS_MASK)&ObjAttr);
+	if (NT_SUCCESS(Status))
+		return TRUE;
+	else
+		return FALSE;
+}
+
+BOOLEAN NTAPI
+IsTabletPC(VOID)
+{
+	NTSTATUS Status;
+	HANDLE KeyHandle = NULL;
+	CHAR Access = 0;
+	OBJECT_ATTRIBUTES ObjAttr;
+	UNICODE_STRING Path;
+
+	RtlInitUnicodeString(&Path, L"\\Registry\\Machine\\System\\WPA\\TabletPC");
+	InitializeObjectAttributes(&ObjAttr, &Path, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	Status = CheckInstalledValue(&KeyHandle, Access, (ACCESS_MASK)&ObjAttr);
+	if (NT_SUCCESS(Status))
+		return TRUE;
+	else
+		return FALSE;
+}
+
+BOOLEAN NTAPI
+IsApplianceServer(VOID)
+{
+	NTSTATUS Status;
+	HANDLE KeyHandle = NULL;
+	CHAR Access = 0;
+	OBJECT_ATTRIBUTES ObjAttr;
+	UNICODE_STRING Path;
+
+	RtlInitUnicodeString(&Path, L"\\Registry\\Machine\\System\\WPA\\ApplianceServer");
+	InitializeObjectAttributes(&ObjAttr, &Path, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	Status = CheckInstalledValue(&KeyHandle, Access, (ACCESS_MASK)&ObjAttr);
+	if (NT_SUCCESS(Status))
+		return TRUE;
+	else
+		return FALSE;
+}
+
 /*
  * @implemented
  *
@@ -61,6 +143,8 @@ RtlGetOSProductName(OUT PUNICODE_STRING Buffer, IN ULONG Flags)
     // Specific operating system family.
     else if (Flags & OS_PRODUCTNAME_FAMILY_SPECIFIC) {
         ProductName = (LPWSTR)L"Longhorn";
+		if (((CHAR *)&VersionInfo.dwMajorVersion)[2] != 1)
+			ProductName = (LPWSTR)L"Longhorn Server";
         AppendConditionally(Buffer, TRUE, ProductName);
     }
 
@@ -68,10 +152,16 @@ RtlGetOSProductName(OUT PUNICODE_STRING Buffer, IN ULONG Flags)
     if (Flags & OS_PRODUCTNAME_TYPE) {
         ProductType = NULL;
         if (!(VersionInfo.dwMajorVersion & 0x40)) {
-			if (VersionInfo.dwMajorVersion & 0x200)
+			if (IsFreestyle())
+				ProductType = (LPWSTR)L"Media Center Edition";
+			else if (IsTabletPC())
+				ProductType = (LPWSTR)L"Tablet PC Edition";
+			else if (VersionInfo.dwMajorVersion & 0x200)
 			    ProductType = (LPWSTR)L"Home Edition";
 			else if (((CHAR *)&VersionInfo.dwMajorVersion)[2] == 1)
 			    ProductType = (LPWSTR)L"Professional";
+			else if (IsApplianceServer())
+				ProductType = (LPWSTR)L"Appliance Server";
 			else if (VersionInfo.dwMajorVersion & 0x400)
 			    ProductType = (LPWSTR)L"Web Server";
 			else if (VersionInfo.dwMajorVersion & 0x21)
